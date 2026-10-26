@@ -371,10 +371,12 @@ textarea.input{min-height:76px;resize:vertical}
 .chart-legend{padding:0 12px 10px}
 .setting{min-height:48px;padding:8px 12px}
 .setting .s-ic{width:32px;height:32px;border-radius:10px}
-.input,select.input,textarea.input{min-height:44px;padding:9px 12px;font-size:15.5px}
+.input,select.input,textarea.input{min-height:44px;padding:9px 12px;font-size:16px}
 label.f-label,.f-label{font-size:12.5px;margin-bottom:4px}
 .field{margin-top:10px}
-.sheet{max-height:96vh}
+.sheet{max-height:94vh;max-height:calc(100dvh - 10px);will-change:transform}
+body.lock{position:fixed;left:0;right:0;width:100%;overflow:hidden}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .sheet-head{padding:4px 8px 4px 16px}
 .sheet-head h3{margin-top:10px;font-size:17px}
 .sheet-body{padding:4px 14px 14px}
@@ -852,15 +854,32 @@ function go(view){
 }
 
 /* =================== BOTTOM SHEET =================== */
-let sheetOnClose = null, lastFocus = null;
+let sheetOnClose = null, lastFocus = null, lockedY = 0;
+function lockBody(on){
+  const b = document.body;
+  if (on && !b.classList.contains('lock')) { lockedY = window.scrollY; b.style.top = -lockedY + 'px'; b.classList.add('lock'); }
+  else if (!on && b.classList.contains('lock') && $('#scanner').hidden) { b.classList.remove('lock'); b.style.top = ''; window.scrollTo(0, lockedY); }
+}
+// Form bám phía trên bàn phím / vùng hiển thị thật của Safari → không bị đẩy lệch
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const fit = () => {
+    const sh = $('#sheet'); if (!sh) return;
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    sh.style.bottom = kb > 40 ? kb + 'px' : '0px';
+    sh.style.maxHeight = Math.round(vv.height - 10) + 'px';
+  };
+  vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
+}
 function openSheet(html, onClose){
   lastFocus = document.activeElement;
   const sh = $('#sheet'); sh.innerHTML = html; sheetOnClose = onClose || null;
-  $('#backdrop').classList.add('show'); sh.classList.add('show'); document.body.classList.add('lock');
+  $('#backdrop').classList.add('show'); sh.classList.add('show'); lockBody(true);
   setTimeout(()=>{ const f = sh.querySelector('[data-autofocus]') || sh; f.focus({preventScroll:true}); }, 320);
+  sh.scrollTop = 0; const body = sh.querySelector('.sheet-body'); if (body) body.scrollTop = 0;
 }
 function closeSheet(){
-  $('#backdrop').classList.remove('show'); $('#sheet').classList.remove('show'); document.body.classList.remove('lock');
+  $('#backdrop').classList.remove('show'); $('#sheet').classList.remove('show'); lockBody(false);
   if (sheetOnClose) { const f = sheetOnClose; sheetOnClose = null; f(); }
   lastFocus && lastFocus.focus && lastFocus.focus({preventScroll:true});
 }
@@ -1303,7 +1322,7 @@ async function scanLoop(){
 }
 async function openScanner(){
   if ($('#sheet').classList.contains('show')) closeSheet();
-  $('#scanner').hidden = false; document.body.classList.add('lock'); scanHandled = false;
+  lockBody(true); $('#scanner').hidden = false; scanHandled = false;
   setScanStatus('Đang mở camera…');
   const camP = (navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
     ? navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}, width: {ideal: 3840}, height: {ideal: 2160}, frameRate: {ideal: 30}}})
@@ -1335,7 +1354,7 @@ async function stopCam(){
   if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
   if (camVideo) { camVideo.srcObject = null; camVideo.remove(); camVideo = null; }
 }
-async function closeScanner(){ await stopCam(); $('#scanner').hidden = true; document.body.classList.remove('lock'); }
+async function closeScanner(){ await stopCam(); $('#scanner').hidden = true; if (!$('#sheet').classList.contains('show')) lockBody(false); }
 async function onScanned(text){
   if (scanHandled) return; scanHandled = true;
   if (navigator.vibrate) navigator.vibrate(40);
