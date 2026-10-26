@@ -454,16 +454,17 @@ function appOptions(sel){
 }
 const noAccent = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^A-Za-z0-9 .,\-\/]/g,' ').replace(/\s+/g,' ').trim();
 function buildDeeplink(appId, f){
+  // Viết đúng dạng link mẫu của VietQR: giữ nguyên '@' trong ba và địa chỉ url, khoảng trắng thành '+'
   const bank = bankByBin(f.payeeBin);
-  const p = new URLSearchParams({
-    app: appId,
-    ba: f.payeeAccount + '@' + (bank ? bank.code : f.payeeBin),
-    am: String(Math.round(f.amount)),
-    tn: noAccent(f.content || f.note || 'Chuyen tien').slice(0, 50),
-    url: S.appUrl || 'https://www.vietqr.io'
-  });
-  if (f.payee) p.set('bn', noAccent(f.payee));
-  return 'https://dl.vietqr.io/pay?' + p.toString();
+  const enc = v => encodeURIComponent(v).replace(/%20/g, '+');
+  const acc = String(f.payeeAccount || '').replace(/[^A-Za-z0-9]/g, '');
+  const back = (S.appUrl || 'https://www.vietqr.io').split('#')[0].split('?')[0];
+  let q = 'app=' + enc(appId)
+        + '&am=' + Math.round(f.amount)
+        + '&tn=' + enc(noAccent(f.content || f.note || 'Chuyen tien').slice(0, 50))
+        + '&ba=' + acc + '@' + (bank ? bank.code : f.payeeBin);
+  if (f.payee) q += '&bn=' + enc(noAccent(f.payee));
+  return 'https://dl.vietqr.io/pay?' + q + '&url=' + back;
 }
 
 /* =================== API (cổng dữ liệu Apps Script + mã khóa bí mật) =================== */
