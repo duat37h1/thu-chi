@@ -892,7 +892,7 @@ function renderTxForm(keepOpen){
       ${F.payeeAccount||F.content ? `<div class="copy-row">
         ${F.payeeAccount?`<button class="btn btn-ghost btn-sm" data-copy="acc">${icon('copy','ic-sm')}Chép số TK</button>`:''}
         ${F.content?`<button class="btn btn-ghost btn-sm" data-copy="content">${icon('copy','ic-sm')}Chép nội dung</button>`:''}</div>
-        <p class="help"><b>Mở app</b>: ghi sổ và mở app ngân hàng (số TK đã chép sẵn). Nếu app không tự điền: dùng <b>Lưu QR &amp; ghi sổ</b> rồi trong app chọn <b>Quét QR → ảnh</b>.</p>`:''}
+        <p class="help">BIDV, VietinBank, ACB, OCB, MB nhận thông tin tự điền khi bấm <b>Mở app</b>. Ngân hàng khác (Agribank, Vietcombank…): ứng dụng lưu ảnh QR rồi mở app, bạn chọn <b>Quét QR → ảnh</b> trong app.</p>`:''}
     </div>` : ''}
 
     <div class="amount-box" id="amtBox">
@@ -925,7 +925,7 @@ function renderTxForm(keepOpen){
     <div class="field"><label class="f-label" for="fNote">Ghi chú</label><input id="fNote" class="input" autocomplete="off" placeholder="${F.mode==='cash'?'VD: Ăn sáng, gửi xe…':'Không bắt buộc'}" value="${esc(F.note)}"></div>
     <div class="field"><label class="f-label" for="fTime">Thời gian</label><input id="fTime" class="input" type="datetime-local" value="${toLocalInput(F.time)}"></div>
   </div>
-  <div class="sheet-foot${F.mode==='transfer'?' foot-col':''}">${F.mode==='transfer' ? `<button class="btn btn-ghost btn-block" id="fOpenApp">${icon('send','ic-sm')}<span id="fAppLbl">${esc(appLabel(F.accountId)||'Mở app ngân hàng')}</span></button>
+  <div class="sheet-foot${F.mode==='transfer'?' foot-col':''}">${F.mode==='transfer' ? `<button class="btn btn-ghost btn-block" id="fOpenApp">${icon('send','ic-sm')}<span id="fAppLbl">${esc(openBtnLabel(F.accountId))}</span></button>
       <div class="foot-row"><button class="btn btn-ghost" id="fSave" style="flex:0 0 auto;padding:0 16px">${icon('check','ic-sm')}Chỉ ghi sổ</button>
       <button class="btn btn-primary" id="fPay">${icon('image','ic-sm')}<span id="fPayLbl">Lưu QR &amp; ghi sổ</span></button></div>`
     : `<button class="btn btn-primary" id="fSave">${icon('check','ic-sm')}<span id="fSaveLbl"></span></button>`}</div>`;
@@ -953,7 +953,7 @@ function updateSaveLabel(){
   if (lbl) lbl.textContent = (F.mode === 'income' ? 'Lưu khoản thu' : 'Lưu khoản chi') + (amt ? ' ' + fmt(amt) : '');
   const pl = $('#fPayLbl');
   if (pl) pl.textContent = 'Lưu QR & ghi sổ';
-  const al = $('#fAppLbl'); if (al) al.textContent = appLabel(F.accountId) || 'Mở app ngân hàng';
+  const al = $('#fAppLbl'); if (al) al.textContent = openBtnLabel(F.accountId);
 }
 function openBankApp(f){
   const acc = accById(f.accountId);
@@ -964,6 +964,10 @@ function openBankApp(f){
   if (!w) { const a = document.createElement('a'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
 }
 const appLabel = accountId => { const acc = accById(accountId), app = acc && acc.appId && (appById(acc.appId) || {appId:acc.appId}); return app ? 'Mở app ' + shortApp(app) : ''; };
+// Theo danh sách chính thức của VietQR: chỉ các app này nhận thông tin điền sẵn qua liên kết
+const AUTOFILL_APPS = new Set(['icb', 'bidv', 'ocb', 'acb', 'mb']);
+const canAutofill = accountId => { const a = accById(accountId); return !!(a && AUTOFILL_APPS.has(a.appId)); };
+const openBtnLabel = accountId => { const l = appLabel(accountId); if (!l) return 'Mở app ngân hàng'; return canAutofill(accountId) ? l : 'Lưu QR → ' + l.replace('Mở app', 'mở app'); };
 const newTxId = () => ('T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).toUpperCase();
 async function saveTx(withQr){
   readForm();
@@ -1319,7 +1323,7 @@ document.addEventListener('click', e => {
   if (F && d.copy) { readForm(); return d.copy === 'acc' ? copyText(F.payeeAccount, 'số tài khoản') : copyText(F.content, 'nội dung'); }
   if (el.id === 'fSave') return saveTx(false);
   if (el.id === 'fPay') return saveTx(true);
-  if (el.id === 'fOpenApp') return saveTx('app');
+  if (el.id === 'fOpenApp') { readForm(); return saveTx(canAutofill(F.accountId) ? 'app' : true); }
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'fAmt') {
