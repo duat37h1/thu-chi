@@ -544,13 +544,13 @@ function setPref(k, v){ try { localStorage.setItem('thuchi_'+k, JSON.stringify(v
 const errMsg = e => (e && e.message) ? e.message.replace(/^Exception:\s*/,'') : String(e);
 
 let toastTimer;
-function toast(msg, kind='ok', action){
+function toast(msg, kind='ok', action, ms){
   const t = $('#toast');
   t.className = 'toast show ' + kind;
   t.innerHTML = icon(kind === 'ok' ? 'check' : 'alert', 'ic-sm') + '<span>'+esc(msg)+'</span>' + (action ? `<button class="toast-act">${esc(action.label)}</button>` : '');
   t.style.pointerEvents = action ? 'auto' : 'none';
   if (action) t.querySelector('.toast-act').onclick = () => { t.className = 'toast'; t.style.pointerEvents = 'none'; action.fn(); };
-  clearTimeout(toastTimer); toastTimer = setTimeout(()=> { t.className = 'toast'; t.style.pointerEvents = 'none'; }, action ? 5000 : 2800);
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=> { t.className = 'toast'; t.style.pointerEvents = 'none'; }, ms || (action ? 5000 : 2800));
 }
 async function copyText(text, label){
   try { await navigator.clipboard.writeText(text); toast('Đã sao chép '+label); }
@@ -887,9 +887,10 @@ function renderTxForm(keepOpen){
         <div><label class="f-label" for="fPayee">Tên người nhận</label><input id="fPayee" class="input" autocomplete="off" value="${esc(F.payee)}"></div>
       </div>
       ${F.payeeAccount||F.content ? `<div class="copy-row">
+        ${F.payeeAccount&&F.payeeBin?`<button class="btn btn-primary btn-sm" data-act="openapp" id="fOpenApp">${icon('send','ic-sm')}<span id="fAppLbl">${esc(appLabel(F.accountId)||'Mở app ngân hàng')}</span></button>`:''}
         ${F.payeeAccount?`<button class="btn btn-ghost btn-sm" data-copy="acc">${icon('copy','ic-sm')}Chép số TK</button>`:''}
         ${F.content?`<button class="btn btn-ghost btn-sm" data-copy="content">${icon('copy','ic-sm')}Chép nội dung</button>`:''}</div>
-        <p class="help">Bấm <b>Lưu QR &amp; ghi sổ</b> → <b>Lưu hình ảnh</b>, rồi trong app ngân hàng chọn <b>Quét QR → ảnh</b>.</p>`:''}
+        <p class="help"><b>Mở app</b> đưa thông tin sang app ngân hàng (bank hỗ trợ sẽ tự điền, số TK đã được chép sẵn). Nếu app không tự điền: bấm <b>Lưu QR &amp; ghi sổ</b> rồi trong app chọn <b>Quét QR → ảnh</b>.</p>`:''}
     </div>` : ''}
 
     <div class="amount-box" id="amtBox">
@@ -949,7 +950,17 @@ function updateSaveLabel(){
   if (lbl) lbl.textContent = (F.mode === 'income' ? 'Lưu khoản thu' : 'Lưu khoản chi') + (amt ? ' ' + fmt(amt) : '');
   const pl = $('#fPayLbl');
   if (pl) pl.textContent = 'Lưu QR & ghi sổ';
+  const al = $('#fAppLbl'); if (al) al.textContent = appLabel(F.accountId) || 'Mở app ngân hàng';
 }
+function openBankApp(f){
+  const acc = accById(f.accountId);
+  if (!acc || !acc.appId) return toast('Tài khoản thanh toán chưa chọn app ngân hàng — vào Tài khoản để chọn', 'err');
+  try { navigator.clipboard && navigator.clipboard.writeText(f.payeeAccount || '').catch(()=>{}); } catch(_) {}
+  const link = buildDeeplink(acc.appId, f);
+  const w = window.open(link, '_blank');
+  if (!w) { const a = document.createElement('a'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+}
+const appLabel = accountId => { const acc = accById(accountId), app = acc && acc.appId && (appById(acc.appId) || {appId:acc.appId}); return app ? 'Mở app ' + shortApp(app) : ''; };
 const newTxId = () => ('T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).toUpperCase();
 async function saveTx(withQr){
   readForm();
@@ -973,17 +984,19 @@ async function saveTx(withQr){
     if (!window.qrcode) { loadScript(QR_LIB).catch(()=>{}); return toast('Đang tải công cụ tạo QR, bấm lại sau giây lát', 'err'); }
     if (!(await shareQr())) return;              // đóng bảng chia sẻ → chưa ghi sổ
   }
+  const snap = {...F}, label = appLabel(F.accountId);
+  const action = withQr && label ? {label, fn: () => openBankApp(snap)} : null;
   commitTx(tx, F.id ? 'Đã cập nhật giao dịch'
-    : withQr ? 'Đã lưu ảnh QR và ghi sổ. Mở app ngân hàng → Quét QR → chọn ảnh'
-    : 'Đã lưu ' + (tx.type==='Thu'?'khoản thu ':'khoản chi ') + fmt(tx.amount));
+    : withQr ? 'Đã lưu ảnh QR và ghi sổ'
+    : 'Đã lưu ' + (tx.type==='Thu'?'khoản thu ':'khoản chi ') + fmt(tx.amount), action);
 }
 // Cập nhật giao diện ngay, gửi máy chủ ở nền; lỗi thì hoàn nguyên
-function commitTx(tx, msg){
+function commitTx(tx, msg, action){
   const prev = S.txs.find(t => t.id === tx.id);
   const local = {...tx, accountName: (accById(tx.accountId)||{}).name || tx.accountName || ''};
   S.txs = S.txs.filter(t => t.id !== tx.id); S.txs.push(local); S.txs.sort((a,b)=>b.time-a.time);
   if ($('#sheet').classList.contains('show')) closeSheet();
-  renderAll(); toast(msg);
+  renderAll(); toast(msg, 'ok', action, action ? 9000 : 0);
   return call('saveTransaction', tx).then(saved => {
     S.txs = S.txs.filter(t => t.id !== saved.id); S.txs.push(saved); S.txs.sort((a,b)=>b.time-a.time); saveCache();
   }).catch(e => {
@@ -1205,6 +1218,7 @@ function act(name){
   if (name === 'cash') return openTxForm('cash');
   if (name === 'income') return openTxForm('income');
   if (name === 'pair') return openPairSheet();
+  if (name === 'openapp') { readForm(); return openBankApp(F); }
   if (name === 'addAcc') {
     const resume = F ? {...F} : null;
     if ($('#sheet').classList.contains('show')) closeSheet();
