@@ -794,6 +794,50 @@ async function openPairSheet(){
   } catch(e) { $('#pairQr').textContent = 'Không tạo được mã QR — hãy dùng nút Chép link.'; }
 }
 
+/* =================== TẠO LẠI MÃ VIETQR → LƯU ẢNH ĐỂ APP NGÂN HÀNG QUÉT =================== */
+function crc16(s){
+  let c = 0xFFFF;
+  for (let i = 0; i < s.length; i++) { c ^= s.charCodeAt(i) << 8; for (let j = 0; j < 8; j++) c = (c & 0x8000) ? ((c << 1) ^ 0x1021) & 0xFFFF : (c << 1) & 0xFFFF; }
+  return c.toString(16).toUpperCase().padStart(4, '0');
+}
+function buildVietQR(f){
+  const bank = bankByBin(f.payeeBin), acc = String(f.payeeAccount || '').replace(/[^A-Za-z0-9]/g, '');
+  if (!bank || !acc) return '';
+  const t = (id, v) => id + String(v.length).padStart(2, '0') + v;
+  const amt = Math.round(f.amount || 0), tn = noAccent(f.content || '').slice(0, 50);
+  let s = t('00','01') + t('01', amt ? '12' : '11')
+        + t('38', t('00','A000000727') + t('01', t('00', bank.bin) + t('01', acc)) + t('02','QRIBFTTA'))
+        + t('53','704') + (amt ? t('54', String(amt)) : '') + t('58','VN') + (tn ? t('62', t('08', tn)) : '') + '6304';
+  return s + crc16(s);
+}
+function qrPngFile(data, caption){
+  const q = qrcode(0, 'M'); q.addData(data); q.make();
+  const n = q.getModuleCount(), cell = 10, pad = 48, size = n * cell + pad * 2;
+  const c = document.createElement('canvas'); c.width = size; c.height = size + 70;
+  const x = c.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.fillStyle = '#000';
+  for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) x.fillRect(pad + k * cell, pad + r * cell, cell, cell);
+  x.font = '600 24px system-ui, sans-serif'; x.textAlign = 'center'; x.fillText(caption, size / 2, size + 30);
+  const bin = atob(c.toDataURL('image/png').split(',')[1]), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([arr], 'qr-chuyen-khoan.png', {type:'image/png'});
+}
+async function saveQrImage(){
+  readForm();
+  const data = buildVietQR(F);
+  if (!data) return toast('Cần chọn ngân hàng và nhập số tài khoản nhận', 'err');
+  if (!window.qrcode) { loadScript(QR_LIB).catch(()=>{}); return toast('Đang tải công cụ tạo QR, bấm lại sau giây lát', 'err'); }
+  const bank = bankByBin(F.payeeBin);
+  const file = qrPngFile(data, (F.amount ? fmt(F.amount) + ' · ' : '') + bank.name + ' ' + F.payeeAccount);
+  const hint = 'Mở app ngân hàng → Quét QR → chọn ảnh vừa lưu';
+  if (navigator.canShare && navigator.canShare({files:[file]})) {
+    try { await navigator.share({files:[file]}); toast(hint); } catch(e) { /* người dùng đóng bảng chia sẻ */ }
+  } else {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove(); toast('Đã tải ảnh QR. ' + hint);
+  }
+}
+
 /* =================== FORM GIAO DỊCH =================== */
 let F = null;   // trạng thái form đang mở
 const QUICK_AMOUNTS = [20000, 50000, 100000, 200000, 500000, 1000000];
@@ -837,9 +881,10 @@ function renderTxForm(keepOpen){
         <div><label class="f-label" for="fPayee">Tên người nhận</label><input id="fPayee" class="input" autocomplete="off" value="${esc(F.payee)}"></div>
       </div>
       ${F.payeeAccount||F.content ? `<div class="copy-row">
+        ${F.payeeAccount&&F.payeeBin?`<button class="btn btn-primary btn-sm" data-act="saveqr">${icon('image','ic-sm')}Lưu ảnh QR</button>`:''}
         ${F.payeeAccount?`<button class="btn btn-ghost btn-sm" data-copy="acc">${icon('copy','ic-sm')}Chép số TK</button>`:''}
         ${F.content?`<button class="btn btn-ghost btn-sm" data-copy="content">${icon('copy','ic-sm')}Chép nội dung</button>`:''}</div>
-        <p class="help">Bấm "Mở app" để chuyển tiền trong app ngân hàng với thông tin điền sẵn. Bạn vẫn xác nhận bằng mã PIN/vân tay như bình thường.</p>`:''}
+        <p class="help">Cách chắc chắn nhất: bấm <b>Lưu ảnh QR</b> → chọn <b>Lưu hình ảnh</b>, rồi trong app ngân hàng chọn <b>Quét QR → ảnh từ thư viện</b>. App tự điền người nhận, số tiền, nội dung.</p>`:''}
     </div>` : ''}
 
     <div class="amount-box" id="amtBox">
@@ -879,6 +924,7 @@ function renderTxForm(keepOpen){
   if (keepOpen) { const body = $('#sheet .sheet-body'), st = body ? body.scrollTop : 0; $('#sheet').innerHTML = html; $('#sheet .sheet-body').scrollTop = st; }
   else openSheet(html, () => { F = null; });
   updateSaveLabel();
+  if (F.mode === 'transfer') loadScript(QR_LIB).catch(()=>{});
 }
 function readForm(){
   if (!F) return;
@@ -922,6 +968,7 @@ async function saveTx(openApp){
     if (!(acc && acc.appId)) { toast('Tài khoản ' + (acc ? acc.name : '') + ' chưa chọn app ngân hàng — vào Tài khoản để chọn', 'err'); return; }
     // Mở app ngay trong thao tác bấm để không bị trình duyệt chặn, đồng thời ghi sổ
     const link = buildDeeplink(acc.appId, F);
+    try { navigator.clipboard && navigator.clipboard.writeText(F.payeeAccount); } catch(_) {}
     const w = window.open(link, '_blank');
     if (!w) { const aEl = document.createElement('a'); aEl.href = link; aEl.target = '_blank'; aEl.rel = 'noopener'; document.body.appendChild(aEl); aEl.click(); aEl.remove(); }
     tx.note = tx.note || 'Chuyển qua app ' + shortApp(appById(acc.appId) || {appId:acc.appId});
@@ -1141,6 +1188,7 @@ function act(name){
   if (name === 'cash') return openTxForm('cash');
   if (name === 'income') return openTxForm('income');
   if (name === 'pair') return openPairSheet();
+  if (name === 'saveqr') return saveQrImage();
   if (name === 'addAcc') {
     const resume = F ? {...F} : null;
     if ($('#sheet').classList.contains('show')) closeSheet();
