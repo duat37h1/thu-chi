@@ -267,6 +267,9 @@ textarea.input{min-height:76px;resize:vertical}
 .sheet-body{overflow-y:auto;padding:var(--s2) var(--s5) var(--s5);overscroll-behavior:contain}
 .sheet-foot{padding:var(--s3) var(--s5) calc(var(--s3) + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:var(--s2)}
 .sheet-foot .btn{flex:1}
+.sheet-foot.foot-col{flex-direction:column}
+.foot-row{display:flex;gap:var(--s2)}
+.foot-row .btn{flex:1}
 .detail-amt{text-align:center;padding:var(--s5) 0 var(--s4)}
 .detail-amt .cat-ic{width:56px;height:56px;border-radius:18px;margin:0 auto var(--s3)}
 .detail-amt b{display:block;font-size:30px;font-weight:700;letter-spacing:-.02em}
@@ -887,10 +890,9 @@ function renderTxForm(keepOpen){
         <div><label class="f-label" for="fPayee">Tên người nhận</label><input id="fPayee" class="input" autocomplete="off" value="${esc(F.payee)}"></div>
       </div>
       ${F.payeeAccount||F.content ? `<div class="copy-row">
-        ${F.payeeAccount&&F.payeeBin?`<button class="btn btn-primary btn-sm" data-act="openapp" id="fOpenApp">${icon('send','ic-sm')}<span id="fAppLbl">${esc(appLabel(F.accountId)||'Mở app ngân hàng')}</span></button>`:''}
         ${F.payeeAccount?`<button class="btn btn-ghost btn-sm" data-copy="acc">${icon('copy','ic-sm')}Chép số TK</button>`:''}
         ${F.content?`<button class="btn btn-ghost btn-sm" data-copy="content">${icon('copy','ic-sm')}Chép nội dung</button>`:''}</div>
-        <p class="help"><b>Mở app</b> đưa thông tin sang app ngân hàng (bank hỗ trợ sẽ tự điền, số TK đã được chép sẵn). Nếu app không tự điền: bấm <b>Lưu QR &amp; ghi sổ</b> rồi trong app chọn <b>Quét QR → ảnh</b>.</p>`:''}
+        <p class="help"><b>Mở app</b>: ghi sổ và mở app ngân hàng (số TK đã chép sẵn). Nếu app không tự điền: dùng <b>Lưu QR &amp; ghi sổ</b> rồi trong app chọn <b>Quét QR → ảnh</b>.</p>`:''}
     </div>` : ''}
 
     <div class="amount-box" id="amtBox">
@@ -923,8 +925,9 @@ function renderTxForm(keepOpen){
     <div class="field"><label class="f-label" for="fNote">Ghi chú</label><input id="fNote" class="input" autocomplete="off" placeholder="${F.mode==='cash'?'VD: Ăn sáng, gửi xe…':'Không bắt buộc'}" value="${esc(F.note)}"></div>
     <div class="field"><label class="f-label" for="fTime">Thời gian</label><input id="fTime" class="input" type="datetime-local" value="${toLocalInput(F.time)}"></div>
   </div>
-  <div class="sheet-foot">${F.mode==='transfer' ? `<button class="btn btn-ghost" id="fSave" style="flex:0 0 auto;padding:0 16px">${icon('check','ic-sm')}Chỉ ghi sổ</button>
-      <button class="btn btn-primary" id="fPay">${icon('image','ic-sm')}<span id="fPayLbl">Lưu QR &amp; ghi sổ</span></button>`
+  <div class="sheet-foot${F.mode==='transfer'?' foot-col':''}">${F.mode==='transfer' ? `<button class="btn btn-ghost btn-block" id="fOpenApp">${icon('send','ic-sm')}<span id="fAppLbl">${esc(appLabel(F.accountId)||'Mở app ngân hàng')}</span></button>
+      <div class="foot-row"><button class="btn btn-ghost" id="fSave" style="flex:0 0 auto;padding:0 16px">${icon('check','ic-sm')}Chỉ ghi sổ</button>
+      <button class="btn btn-primary" id="fPay">${icon('image','ic-sm')}<span id="fPayLbl">Lưu QR &amp; ghi sổ</span></button></div>`
     : `<button class="btn btn-primary" id="fSave">${icon('check','ic-sm')}<span id="fSaveLbl"></span></button>`}</div>`;
 
   if (keepOpen) { const body = $('#sheet .sheet-body'), st = body ? body.scrollTop : 0; $('#sheet').innerHTML = html; $('#sheet .sheet-body').scrollTop = st; }
@@ -979,6 +982,13 @@ async function saveTx(withQr){
     payeeBank:F.mode==='transfer'?((bankByBin(F.payeeBin)||{}).name||''):'',
     content:F.mode==='transfer'?F.content:'', note:F.note, qr:F.mode==='transfer'?F.qr:''
   };
+  if (withQr === 'app') {
+    if (!F.payeeBin || !F.payeeAccount) return toast('Cần ngân hàng và số tài khoản nhận', 'err');
+    if (!acc || !acc.appId) return toast('Tài khoản thanh toán chưa chọn app ngân hàng — vào Tài khoản để chọn', 'err');
+    openBankApp(F);
+    tx.note = tx.note || 'Chuyển qua ' + appLabel(F.accountId).replace('Mở app ', 'app ');
+    return commitTx(tx, 'Đã ghi sổ và mở app', {label:'Hoàn tác', fn: () => { const t = S.txs.find(x => x.id === tx.id); if (t) removeTx(t); }});
+  }
   if (withQr) {
     if (!F.payeeBin || !F.payeeAccount) return toast('Cần ngân hàng và số tài khoản nhận để tạo ảnh QR', 'err');
     if (!window.qrcode) { loadScript(QR_LIB).catch(()=>{}); return toast('Đang tải công cụ tạo QR, bấm lại sau giây lát', 'err'); }
@@ -1218,7 +1228,6 @@ function act(name){
   if (name === 'cash') return openTxForm('cash');
   if (name === 'income') return openTxForm('income');
   if (name === 'pair') return openPairSheet();
-  if (name === 'openapp') { readForm(); return openBankApp(F); }
   if (name === 'addAcc') {
     const resume = F ? {...F} : null;
     if ($('#sheet').classList.contains('show')) closeSheet();
@@ -1245,6 +1254,7 @@ document.addEventListener('click', e => {
   if (F && d.copy) { readForm(); return d.copy === 'acc' ? copyText(F.payeeAccount, 'số tài khoản') : copyText(F.content, 'nội dung'); }
   if (el.id === 'fSave') return saveTx(false);
   if (el.id === 'fPay') return saveTx(true);
+  if (el.id === 'fOpenApp') return saveTx('app');
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'fAmt') {
