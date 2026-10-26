@@ -961,7 +961,13 @@ function openBankApp(f){
   try { navigator.clipboard && navigator.clipboard.writeText(f.payeeAccount || '').catch(()=>{}); } catch(_) {}
   const link = buildDeeplink(acc.appId, f);
   const w = window.open(link, '_blank');
-  if (!w) { const a = document.createElement('a'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+  if (!w) { const a = document.createElement('a'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); return; }
+  // Tự đóng trang trung gian của VietQR khi app ngân hàng đã mở / khi bạn quay lại → không phải bấm "quay lại"
+  let done = false;
+  const closeIt = () => { if (done) return; done = true; try { w.close(); } catch(_) {} document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', closeIt); };
+  const onVis = () => { if (document.visibilityState === 'visible') closeIt(); };
+  setTimeout(() => { document.addEventListener('visibilitychange', onVis); window.addEventListener('focus', closeIt); }, 600);
+  setTimeout(closeIt, 3500);
 }
 const appLabel = accountId => { const acc = accById(accountId), app = acc && acc.appId && (appById(acc.appId) || {appId:acc.appId}); return app ? 'Mở app ' + shortApp(app) : ''; };
 // Theo danh sách chính thức của VietQR: chỉ các app này nhận thông tin điền sẵn qua liên kết
@@ -992,6 +998,7 @@ async function saveTx(withQr){
     openBankApp(F);
     tx.note = tx.note || 'Chuyển qua ' + appLabel(F.accountId).replace('Mở app ', 'app ');
     const msg = canAutofill(F.accountId) ? 'Đã ghi sổ và mở app' : 'Đã ghi sổ — trong app ngân hàng bấm Quét QR, quét lại mã';
+    go('home');
     return commitTx(tx, msg, {label:'Hoàn tác', fn: () => { const t = S.txs.find(x => x.id === tx.id); if (t) removeTx(t); }});
   }
   if (withQr) {
