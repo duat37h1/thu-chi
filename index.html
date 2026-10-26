@@ -1172,14 +1172,22 @@ async function decodeCanvas(){
   const r = await ZXingWASM.readBarcodes(scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height), ZX_OPTS);
   return r[0] && r[0].text;
 }
+// Xoay vòng 3 cách cắt khung: vùng giữa giữ độ phân giải gốc · vùng giữa nhỏ phóng to (mã ở xa) · toàn khung (mã to/lệch tâm)
 function grabFrame(){
   const vw = camVideo && camVideo.videoWidth, vh = camVideo && camVideo.videoHeight;
   if (!vw || !vh) return false;
-  if (frameNo++ % 3 !== 2) {                 // 2/3 số lần: vùng giữa, giữ nguyên độ phân giải (mã ở xa vẫn đủ điểm ảnh)
-    const side = Math.round(Math.min(vw, vh) * 0.8), out = Math.min(side, 1000);
+  const mode = frameNo++ % 3, short = Math.min(vw, vh);
+  if (mode === 0) {
+    const side = Math.round(short * 0.75), out = Math.min(side, 1400);
     scanCanvas.width = out; scanCanvas.height = out;
+    scanCtx.imageSmoothingEnabled = true;
     scanCtx.drawImage(camVideo, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, out, out);
-  } else {                                   // 1/3: toàn khung (mã to, lệch tâm)
+  } else if (mode === 1) {
+    const side = Math.round(short * 0.38), out = Math.max(side * 2, 720);   // phóng to ~2 lần như zoom
+    scanCanvas.width = out; scanCanvas.height = out;
+    scanCtx.imageSmoothingEnabled = true; scanCtx.imageSmoothingQuality = 'high';
+    scanCtx.drawImage(camVideo, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, out, out);
+  } else {
     const k = Math.min(1, 1280 / Math.max(vw, vh));
     scanCanvas.width = Math.round(vw * k); scanCanvas.height = Math.round(vh * k);
     scanCtx.drawImage(camVideo, 0, 0, scanCanvas.width, scanCanvas.height);
@@ -1198,7 +1206,7 @@ async function openScanner(){
   $('#scanner').hidden = false; document.body.classList.add('lock'); scanHandled = false;
   setScanStatus('Đang mở camera…');
   const camP = (navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
-    ? navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}, width: {ideal: 1920}, height: {ideal: 1080}}})
+    ? navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}, width: {ideal: 3840}, height: {ideal: 2160}, frameRate: {ideal: 30}}})
     : Promise.reject(new Error('nocam'));
   const decP = initDecoder();
   try {
@@ -1208,12 +1216,18 @@ async function openScanner(){
     camVideo.setAttribute('playsinline', ''); camVideo.playsInline = true; camVideo.muted = true; camVideo.srcObject = camStream;
     $('#reader').replaceChildren(camVideo); await camVideo.play();
     const track = camStream.getVideoTracks()[0];
-    try { const cap = track.getCapabilities ? track.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes('continuous')) await track.applyConstraints({advanced: [{focusMode: 'continuous'}]}); } catch(_) {}
+    try {
+      const cap = track.getCapabilities ? track.getCapabilities() : {}, adv = {};
+      if (cap.focusMode && cap.focusMode.includes('continuous')) adv.focusMode = 'continuous';
+      if (cap.zoom && cap.zoom.max > 1) adv.zoom = Math.min(2, cap.zoom.max);          // zoom của camera nếu máy cho phép
+      if (Object.keys(adv).length) await track.applyConstraints({advanced: [adv]});
+    } catch(_) {}
   } catch(e) {
     setScanStatus('Không mở được camera. Bấm "Ảnh có mã QR" để chụp hoặc chọn ảnh mã QR.'); return;
   }
   try { await decP; } catch(_) { setScanStatus('Không tải được trình quét. Kiểm tra mạng rồi thử lại.'); return; }
-  setScanStatus('Hướng camera vào mã QR chuyển khoản');
+  const st = camStream.getVideoTracks()[0].getSettings ? camStream.getVideoTracks()[0].getSettings() : {};
+  setScanStatus('Hướng camera vào mã QR · camera ' + (camVideo.videoWidth || st.width || '?') + '×' + (camVideo.videoHeight || st.height || '?') + (st.zoom > 1 ? ' · zoom ' + st.zoom + 'x' : ''));
   scanning = true; scanLoopOn = true; frameNo = 0; scanLoop();
 }
 async function stopCam(){
