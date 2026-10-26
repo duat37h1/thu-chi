@@ -314,6 +314,91 @@ textarea.input{min-height:76px;resize:vertical}
 @keyframes sh{to{background-position:-200% 0}}
 .boot-err{padding:var(--s5);text-align:center}
 
+
+/* ============ BỐ CỤC GỌN ============ */
+.acc-scroll .acc-no{display:none}
+.acc-scroll .acc-card .acc-bal{margin-top:4px}
+.acc-dot{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;background:var(--c);flex:none}
+.dflt{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:99px;background:var(--primary-soft);color:var(--primary);vertical-align:2px}
+:root{--s5:16px;--s6:20px;--r-lg:18px;--r-md:14px;--tabbar-h:64px}
+#app{padding-top:calc(env(safe-area-inset-top) + 10px);padding-left:12px;padding-right:12px}
+.topbar{margin-bottom:10px}
+.topbar h1{font-size:21px}
+.icon-btn{width:40px;height:40px;border-radius:12px}
+.section{margin-top:14px}
+.section-head{margin-bottom:6px}
+.section-head h2{font-size:15.5px}
+.link-btn{min-height:36px;font-size:13.5px}
+.hero{padding:14px 16px 12px}
+.hero-label{font-size:13px}
+.hero-amount{font-size:28px;margin:2px 0 10px}
+.hero-pill{padding:8px 10px;border-radius:12px}
+.hero-pill .dot{width:26px;height:26px;border-radius:8px}
+.hero-pill b{font-size:14px}
+.quick{margin-top:10px;gap:6px}
+.qa{min-height:66px;padding:8px 2px;gap:4px;font-size:12px;border-radius:12px}
+.qa .qa-ic{width:36px;height:36px;border-radius:11px}
+.qa .qa-ic .ic{width:20px;height:20px}
+.acc-scroll{gap:8px;padding-bottom:2px;margin:0 -12px;padding-left:12px;padding-right:12px}
+.acc-card{flex:0 0 46%;max-width:190px;min-height:0;padding:10px 12px;border-radius:12px}
+.acc-card::after{width:70px;height:70px;right:-22px;top:-22px}
+.acc-card .acc-name{font-size:13.5px}
+.acc-card .acc-no{font-size:11.5px;margin-top:0}
+.acc-card .acc-bal{font-size:15.5px;margin-top:6px}
+.acc-card .badge{font-size:10.5px;padding:2px 6px}
+.acc-card .badge .ic,.acc-card .acc-top>.ic{width:15px;height:15px}
+.acc-add{flex:0 0 84px;min-height:0;border-radius:12px;font-size:12px;gap:4px}
+.acc-list{gap:8px}
+.acc-list .acc-card{padding:10px 14px}
+.tx{min-height:54px;padding:8px 12px;gap:10px}
+.cat-ic{width:36px;height:36px;border-radius:11px}
+.cat-ic .ic{width:19px;height:19px}
+.tx-title{font-size:14.5px}
+.tx-sub{font-size:12px}
+.tx-amt{font-size:14.5px}
+.day-head{padding:10px 4px 4px;font-size:12.5px}
+.empty{padding:20px 12px}
+.month-nav{padding:2px;margin-bottom:8px}
+.seg button{min-height:36px;font-size:13.5px}
+.search{margin-top:8px}
+.summary3{margin-top:8px;gap:6px}
+.sum{padding:8px 10px;border-radius:12px}
+.donut-wrap{padding:14px;gap:14px}
+.donut{width:120px;height:120px}
+.donut::after{inset:18px}
+.cat-row{padding:8px 12px;gap:10px}
+.bars{height:140px;padding:12px 12px 0}
+.chart-legend{padding:0 12px 10px}
+.setting{min-height:48px;padding:8px 12px}
+.setting .s-ic{width:32px;height:32px;border-radius:10px}
+.input,select.input,textarea.input{min-height:44px;padding:9px 12px;font-size:15.5px}
+label.f-label,.f-label{font-size:12.5px;margin-bottom:4px}
+.field{margin-top:10px}
+.sheet{max-height:96vh}
+.sheet-head{padding:4px 8px 4px 16px}
+.sheet-head h3{margin-top:10px;font-size:17px}
+.sheet-body{padding:4px 14px 14px}
+.sheet-foot{padding:8px 14px calc(8px + env(safe-area-inset-bottom));gap:6px}
+.btn{min-height:46px;font-size:15px;padding:0 16px}
+.btn-sm{min-height:36px;font-size:13px;padding:0 12px}
+.payee{padding:10px 12px;margin-top:10px;border-radius:12px}
+.payee-head{margin-bottom:4px}
+.grid2{gap:6px}
+.copy-row{margin-top:8px;gap:6px}
+.amount-box{margin-top:10px;padding:10px 12px;border-radius:12px}
+.amount-row input{font-size:28px;padding:0}
+.chips{margin-top:6px;gap:6px}
+.chip{min-height:32px;padding:0 12px;font-size:13px}
+.cat-grid{gap:4px}
+.cat-opt{min-height:58px;padding:6px 2px;gap:3px;font-size:11.5px}
+.cat-opt .cat-ic{width:32px!important;height:32px!important}
+.pay-opt{padding:8px 10px;min-width:136px}
+.pay-opt .pay-dot{width:30px;height:30px}
+.detail-amt{padding:14px 0 10px}
+.kv{padding:9px 0;font-size:14px}
+.tab{height:54px;font-size:11px}
+.fab{width:56px;height:56px;border-radius:18px;margin-top:-22px}
+
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
@@ -326,8 +411,7 @@ textarea.input{min-height:76px;resize:vertical}
 <div id="app">
   <header class="topbar">
     <div>
-      <p class="eyebrow" id="eyebrow">Thu chi cá nhân</p>
-      <h1 id="viewTitle">Tổng quan</h1>
+            <h1 id="viewTitle">Tổng quan</h1>
     </div>
     <div class="top-actions">
       <button class="icon-btn" id="btnEye" aria-label="Ẩn số dư"></button>
@@ -607,6 +691,15 @@ function accCard(a, bal, extraCls=''){
     <div class="acc-bal num">${money(bal)}</div>
   </button>`;
 }
+function accRow(a, bal){
+  const bank = a.type === 'Ngân hàng';
+  return `<button class="tx acc-row" data-acc="${esc(a.id)}">
+    <span class="acc-dot" style="--c:${esc(accColor(a))}">${icon(bank?'bank':'cash','ic-sm')}</span>
+    <span class="tx-main"><span class="tx-title">${esc(a.name)}${a.isDefault?'<span class="dflt">Mặc định</span>':''}</span>
+      <span class="tx-sub num">${bank ? esc(a.bank) + (a.number ? ' · ' + maskNo(a.number) : '') : 'Tiền mặt / ví'}</span></span>
+    <span class="tx-amt num">${money(bal)}</span>
+  </button>`;
+}
 const emptyBox = (msg, ic='history') => `<div class="empty">${icon(ic)}<div>${msg}</div></div>`;
 
 function renderHome(){
@@ -727,24 +820,21 @@ function renderAccounts(){
       <div><div style="font-size:13px;color:var(--muted);font-weight:500">Tổng tài sản</div><div class="num" style="font-size:24px;font-weight:700">${money(total)}</div></div>
       <button class="btn btn-primary btn-sm" data-act="addAcc">${icon('plus','ic-sm')}Thêm</button>
     </div>
-    <div class="section"><div class="section-head"><h2>Ngân hàng</h2></div>
-      <div class="acc-list">${bankAccounts().map(a=>accCard(a, bal[a.id])).join('') || `<div class="card">${emptyBox('Chưa có tài khoản ngân hàng.<br>Thêm tài khoản để chọn khi thanh toán QR.','bank')}</div>`}</div></div>
-    <div class="section"><div class="section-head"><h2>Tiền mặt & ví</h2></div>
-      <div class="acc-list">${cashAccounts().map(a=>accCard(a, bal[a.id])).join('')}</div></div>
+    <div class="section"><div class="card tx-list">${S.accounts.map(a=>accRow(a, bal[a.id])).join('')}</div></div>
     <div class="section"><div class="section-head"><h2>Cài đặt</h2></div>
       <div class="card">
         <label class="setting" for="setAuto">
           <span class="s-ic">${icon('scan','ic-sm')}</span>
-          <span class="s-main">Mở máy quét khi vào ứng dụng<small>Vào app là quét QR ngay</small></span>
+          <span class="s-main">Tự mở máy quét</span>
           <span class="switch"><input type="checkbox" id="setAuto" ${S.autoScan?'checked':''}><span></span></span>
         </label>
         <button class="setting" data-act="pair">
           <span class="s-ic">${icon('scan','ic-sm')}</span>
-          <span class="s-main">Kết nối điện thoại khác<small>Hiện mã QR để máy khác mở app với mã khóa</small></span>${icon('chevR','ic-sm')}
+          <span class="s-main">Kết nối điện thoại</span>${icon('chevR','ic-sm')}
         </button>
         <a class="setting" href="${esc(S.sheetUrl)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">
           <span class="s-ic">${icon('sheet','ic-sm')}</span>
-          <span class="s-main">Mở Google Sheet dữ liệu<small>Xem, lọc, xuất báo cáo, sửa danh mục</small></span>${icon('chevR','ic-sm')}
+          <span class="s-main">Mở Google Sheet</span>${icon('chevR','ic-sm')}
         </a>
       </div></div>`;
 }
@@ -891,8 +981,7 @@ function renderTxForm(keepOpen){
       </div>
       ${F.payeeAccount||F.content ? `<div class="copy-row">
         ${F.payeeAccount?`<button class="btn btn-ghost btn-sm" data-copy="acc">${icon('copy','ic-sm')}Chép số TK</button>`:''}
-        ${F.content?`<button class="btn btn-ghost btn-sm" data-copy="content">${icon('copy','ic-sm')}Chép nội dung</button>`:''}</div>
-        <p class="help">BIDV, VietinBank, ACB, OCB, MB tự điền thông tin khi mở app. Ngân hàng khác (Agribank, Vietcombank…): mở app rồi bấm <b>Quét QR</b> và quét lại mã. Mã chỉ có trong ảnh? Dùng <b>Lưu QR &amp; ghi sổ</b>.</p>`:''}
+        ${F.content?`<button class="btn btn-ghost btn-sm" data-copy="content">${icon('copy','ic-sm')}Chép nội dung</button>`:''}</div>`:''}
     </div>` : ''}
 
     <div class="amount-box" id="amtBox">
@@ -1083,14 +1172,13 @@ function openAccForm(id, afterSave){
       ${isBank ? `<div class="field"><label class="f-label" for="aBank">Ngân hàng</label>
         <select id="aBank" class="input"><option value="">— Chọn ngân hàng —</option>${BANKS.map(b=>`<option value="${b.bin}" ${b.bin===a.bin?'selected':''}>${esc(b.name)}</option>`).join('')}</select>
         <div id="aBankErr" class="err" hidden>${icon('alert','ic-sm')}Vui lòng chọn ngân hàng</div></div>
-      <div class="field"><label class="f-label" for="aNo">Số tài khoản</label><input id="aNo" class="input num" value="${esc(a.number)}" autocomplete="off"><p class="help">Chỉ để bạn nhận biết, không dùng để giao dịch.</p></div>
+      <div class="field"><label class="f-label" for="aNo">Số tài khoản</label><input id="aNo" class="input num" value="${esc(a.number)}" autocomplete="off"></div>
       <div class="field"><label class="f-label" for="aApp">App để chuyển khoản</label>
-        <select id="aApp" class="input">${appOptions(a.appId || guessApp(a.bin))}</select>
-        <p class="help">Sau khi quét QR, bấm "Mở app" sẽ mở app này với thông tin điền sẵn.</p></div>` : ''}
+        <select id="aApp" class="input">${appOptions(a.appId || guessApp(a.bin))}</select></div>` : ''}
       <div class="field"><label class="f-label" for="aName">Tên hiển thị</label><input id="aName" class="input" value="${esc(a.name)}" placeholder="${isBank?'VD: VCB lương':'VD: Ví tiền mặt'}" autocomplete="off">
         <div id="aNameErr" class="err" hidden>${icon('alert','ic-sm')}Vui lòng nhập tên</div></div>
-      <div class="field"><label class="f-label" for="aOpen">Số dư ban đầu (₫)</label><input id="aOpen" class="input num" inputmode="numeric" value="${a.opening?fmtNum(a.opening):''}" placeholder="0" autocomplete="off"><p class="help">Số dư hiện tại = số dư ban đầu + tổng thu − tổng chi.</p></div>
-      ${isBank ? `<label class="setting" for="aDef" style="padding:16px 0 0"><span class="s-main">Tài khoản mặc định khi quét QR<small>Tự chọn sẵn khi thanh toán chuyển khoản</small></span><span class="switch"><input type="checkbox" id="aDef" ${a.isDefault?'checked':''}><span></span></span></label>` : ''}
+      <div class="field"><label class="f-label" for="aOpen">Số dư ban đầu (₫)</label><input id="aOpen" class="input num" inputmode="numeric" value="${a.opening?fmtNum(a.opening):''}" placeholder="0" autocomplete="off"></div>
+      ${isBank ? `<label class="setting" for="aDef" style="padding:12px 0 0;min-height:0"><span class="s-main">Mặc định khi quét QR</span><span class="switch"><input type="checkbox" id="aDef" ${a.isDefault?'checked':''}><span></span></span></label>` : ''}
     </div>
     <div class="sheet-foot">
       ${id ? `<button class="btn btn-danger" id="aDel" style="flex:0 0 auto;padding:0 18px" aria-label="Xóa tài khoản">${icon('trash','ic-sm')}</button>` : ''}
