@@ -563,8 +563,34 @@ function buildDeeplink(appId, f){
 const API_URL = 'https://script.google.com/macros/s/AKfycbxbVtsQcOLF9vULcOcRk-1JKvtim3Dddo2G-DoddrMlgvqgh-fT6rtKVBxD22ftCFGtIA/exec';                     // địa chỉ ứng dụng web Apps Script (/exec)
 const USE_MOCK = location.protocol === 'file:' || API_URL.startsWith('__');
 // Mã khóa lấy từ đường link cài đặt (#key=...) rồi lưu trong máy, không nằm trong mã nguồn
-(function(){ const m = location.hash.match(/key=([A-Za-z0-9]{20,})/); if (m) { try { localStorage.setItem('thuchi_key', JSON.stringify(m[1])); } catch(e){} } })();
-const getKey = () => pref('key', '');
+// Mã khóa được giữ ở nhiều nơi (bộ nhớ trình duyệt, cookie, IndexedDB, và ngay trong đường link #key=)
+// để thoát ra vào lại — kể cả từ biểu tượng màn hình chính — không phải nhập lại.
+function cookieKey(){ const m = document.cookie.match(/(?:^|;\s*)tc_key=([A-Za-z0-9]+)/); return m ? m[1] : ''; }
+function idb(mode, val){
+  return new Promise(res => {
+    try {
+      const rq = indexedDB.open('thuchi', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('kv');
+      rq.onerror = () => res('');
+      rq.onsuccess = () => {
+        try {
+          const tx = rq.result.transaction('kv', mode === 'get' ? 'readonly' : 'readwrite'), st = tx.objectStore('kv');
+          if (mode === 'get') { const g = st.get('key'); g.onsuccess = () => res(g.result || ''); g.onerror = () => res(''); }
+          else { st.put(val, 'key'); tx.oncomplete = () => res(true); tx.onerror = () => res(false); }
+        } catch(e) { res(''); }
+      };
+    } catch(e) { res(''); }
+  });
+}
+function storeKey(k){
+  if (!k) return;
+  setPref('key', k);
+  try { document.cookie = 'tc_key=' + k + ';max-age=31536000;path=/;samesite=strict;secure'; } catch(e){}
+  idb('set', k);
+  try { if (location.hash !== '#key=' + k) history.replaceState(null, '', location.pathname + location.search + '#key=' + k); } catch(e){}
+}
+const getKey = () => pref('key', '') || cookieKey();
+(function(){ const m = location.hash.match(/key=([A-Za-z0-9]{20,})/); const k = (m && m[1]) || getKey(); if (k) storeKey(k); })();
 async function call(fn, ...args){
   if (USE_MOCK) return MOCK[fn](...args);
   const key = getKey();
@@ -1477,6 +1503,8 @@ function skeleton(){
 }
 async function boot(reload){
   paintIcons(); paintEye();
+  if (!getKey()) { const k = await idb('get'); if (k) storeKey(k); }
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(_) {}
   const rb = $('#btnReload'); rb.innerHTML = icon('reload'); rb.disabled = true;
   S.appUrl = location.href.split('#')[0];
   // Hiện ngay dữ liệu đã lưu trên máy, rồi đồng bộ với máy chủ ở nền
@@ -1517,7 +1545,7 @@ function keyScreen(bad){
     <div class="field"><label class="f-label" for="kIn">Mã khóa</label><input id="kIn" class="input" autocomplete="off" autocapitalize="off" spellcheck="false" ${bad?'aria-invalid="true"':''}>
     ${bad?`<div class="err">${icon('alert','ic-sm')}Mã khóa không đúng hoặc đã được đổi</div>`:''}</div>
     <button class="btn btn-primary btn-block" style="margin-top:16px" id="kSave">${icon('check','ic-sm')}Lưu và tải dữ liệu</button></div>`;
-  $('#kSave').onclick = () => { const v = $('#kIn').value.trim(); if (!v) return $('#kIn').focus(); setPref('key', v); boot(); };
+  $('#kSave').onclick = () => { const v = $('#kIn').value.trim(); if (!v) return $('#kIn').focus(); storeKey(v); boot(); };
 }
 boot();
 </script>
