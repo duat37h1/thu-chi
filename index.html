@@ -12,7 +12,9 @@
 <title>Thu Chi Cá Nhân</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
 <style>
 /* ============ TOKENS ============ */
 :root{
@@ -302,6 +304,8 @@ textarea.input{min-height:76px;resize:vertical}
 .toast{position:fixed;left:50%;bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);z-index:80;transform:translate(-50%,20px);opacity:0;pointer-events:none;
   background:#0F172A;color:#F8FAFC;border:1px solid rgba(255,255,255,.12);padding:12px 16px;border-radius:14px;font-size:14px;font-weight:500;box-shadow:var(--shadow);display:flex;gap:var(--s2);align-items:center;max-width:calc(100vw - 32px);transition:all var(--t-med) var(--ease)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
+.toast{width:max-content}
+.toast-act{white-space:nowrap;margin-left:6px;color:#93C5FD;font-weight:700;padding:6px 8px;min-height:36px;border-radius:8px}
 .toast.err .ic{color:#F87171} .toast.ok .ic{color:#34D399}
 .skel{border-radius:var(--r-md);background:linear-gradient(90deg,var(--card) 25%,var(--elev) 50%,var(--card) 75%);background-size:200% 100%;animation:sh 1.3s infinite}
 @keyframes sh{to{background-position:-200% 0}}
@@ -369,7 +373,6 @@ textarea.input{min-height:76px;resize:vertical}
 <div class="sheet" id="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 /* =================== ICONS (nét 2px, cùng một họ) =================== */
 const IC = {
@@ -541,11 +544,13 @@ function setPref(k, v){ try { localStorage.setItem('thuchi_'+k, JSON.stringify(v
 const errMsg = e => (e && e.message) ? e.message.replace(/^Exception:\s*/,'') : String(e);
 
 let toastTimer;
-function toast(msg, kind='ok'){
+function toast(msg, kind='ok', action){
   const t = $('#toast');
   t.className = 'toast show ' + kind;
-  t.innerHTML = icon(kind === 'ok' ? 'check' : 'alert', 'ic-sm') + '<span>'+esc(msg)+'</span>';
-  clearTimeout(toastTimer); toastTimer = setTimeout(()=> t.className = 'toast', 2800);
+  t.innerHTML = icon(kind === 'ok' ? 'check' : 'alert', 'ic-sm') + '<span>'+esc(msg)+'</span>' + (action ? `<button class="toast-act">${esc(action.label)}</button>` : '');
+  t.style.pointerEvents = action ? 'auto' : 'none';
+  if (action) t.querySelector('.toast-act').onclick = () => { t.className = 'toast'; t.style.pointerEvents = 'none'; action.fn(); };
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=> { t.className = 'toast'; t.style.pointerEvents = 'none'; }, action ? 5000 : 2800);
 }
 async function copyText(text, label){
   try { await navigator.clipboard.writeText(text); toast('Đã sao chép '+label); }
@@ -742,7 +747,8 @@ function renderAccounts(){
 }
 
 const VIEW_TITLES = {home:'Tổng quan', history:'Lịch sử', stats:'Thống kê', accounts:'Tài khoản'};
-function renderAll(){ renderHome(); renderHistory(); renderStats(); renderAccounts(); paintEye(); }
+function saveCache(){ try { localStorage.setItem('thuchi_cache', JSON.stringify({accounts:S.accounts, cats:S.cats, txs:S.txs, sheetUrl:S.sheetUrl, bankApps:S.bankApps})); } catch(e){} }
+function renderAll(){ renderHome(); renderHistory(); renderStats(); renderAccounts(); paintEye(); saveCache(); }
 function paintEye(){ const b=$('#btnEye'); b.innerHTML = icon(S.hide?'eyeOff':'eye'); b.setAttribute('aria-label', S.hide?'Hiện số dư':'Ẩn số dư'); }
 function go(view){
   S.view = view;
@@ -774,8 +780,12 @@ function confirmBox(title, msg, okLabel, onOk){
 
 /* =================== KẾT NỐI ĐIỆN THOẠI (mã QR chứa link cài đặt) =================== */
 const QR_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
-function loadScript(src){
-  return new Promise((res, rej) => { if (window.qrcode) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+const SCAN_LIB = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+const _loading = {};
+function loadScript(src, g = 'qrcode'){
+  if (window[g]) return Promise.resolve();
+  if (_loading[src]) return _loading[src];
+  return _loading[src] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => { delete _loading[src]; rej(); }; document.head.appendChild(s); });
 }
 async function openPairSheet(){
   const link = location.href.split('#')[0] + '#key=' + getKey();
@@ -822,20 +832,16 @@ function qrPngFile(data, caption){
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   return new File([arr], 'qr-chuyen-khoan.png', {type:'image/png'});
 }
-async function saveQrImage(){
-  readForm();
-  const data = buildVietQR(F);
-  if (!data) return toast('Cần chọn ngân hàng và nhập số tài khoản nhận', 'err');
-  if (!window.qrcode) { loadScript(QR_LIB).catch(()=>{}); return toast('Đang tải công cụ tạo QR, bấm lại sau giây lát', 'err'); }
+async function shareQr(){
   const bank = bankByBin(F.payeeBin);
-  const file = qrPngFile(data, (F.amount ? fmt(F.amount) + ' · ' : '') + bank.name + ' ' + F.payeeAccount);
-  const hint = 'Mở app ngân hàng → Quét QR → chọn ảnh vừa lưu';
+  const file = qrPngFile(buildVietQR(F), (F.amount ? fmt(F.amount) + ' · ' : '') + bank.name + ' ' + F.payeeAccount);
   if (navigator.canShare && navigator.canShare({files:[file]})) {
-    try { await navigator.share({files:[file]}); toast(hint); } catch(e) { /* người dùng đóng bảng chia sẻ */ }
-  } else {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
-    document.body.appendChild(a); a.click(); a.remove(); toast('Đã tải ảnh QR. ' + hint);
+    try { await navigator.share({files:[file]}); return true; }
+    catch(e) { if (e && e.name === 'AbortError') return false; }
   }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  return true;
 }
 
 /* =================== FORM GIAO DỊCH =================== */
@@ -881,10 +887,9 @@ function renderTxForm(keepOpen){
         <div><label class="f-label" for="fPayee">Tên người nhận</label><input id="fPayee" class="input" autocomplete="off" value="${esc(F.payee)}"></div>
       </div>
       ${F.payeeAccount||F.content ? `<div class="copy-row">
-        ${F.payeeAccount&&F.payeeBin?`<button class="btn btn-primary btn-sm" data-act="saveqr">${icon('image','ic-sm')}Lưu ảnh QR</button>`:''}
         ${F.payeeAccount?`<button class="btn btn-ghost btn-sm" data-copy="acc">${icon('copy','ic-sm')}Chép số TK</button>`:''}
         ${F.content?`<button class="btn btn-ghost btn-sm" data-copy="content">${icon('copy','ic-sm')}Chép nội dung</button>`:''}</div>
-        <p class="help">Cách chắc chắn nhất: bấm <b>Lưu ảnh QR</b> → chọn <b>Lưu hình ảnh</b>, rồi trong app ngân hàng chọn <b>Quét QR → ảnh từ thư viện</b>. App tự điền người nhận, số tiền, nội dung.</p>`:''}
+        <p class="help">Bấm <b>Lưu QR &amp; ghi sổ</b> → <b>Lưu hình ảnh</b>, rồi trong app ngân hàng chọn <b>Quét QR → ảnh</b>.</p>`:''}
     </div>` : ''}
 
     <div class="amount-box" id="amtBox">
@@ -918,7 +923,7 @@ function renderTxForm(keepOpen){
     <div class="field"><label class="f-label" for="fTime">Thời gian</label><input id="fTime" class="input" type="datetime-local" value="${toLocalInput(F.time)}"></div>
   </div>
   <div class="sheet-foot">${F.mode==='transfer' ? `<button class="btn btn-ghost" id="fSave" style="flex:0 0 auto;padding:0 16px">${icon('check','ic-sm')}Chỉ ghi sổ</button>
-      <button class="btn btn-primary" id="fPay">${icon('send','ic-sm')}<span id="fPayLbl"></span></button>`
+      <button class="btn btn-primary" id="fPay">${icon('image','ic-sm')}<span id="fPayLbl">Lưu QR &amp; ghi sổ</span></button>`
     : `<button class="btn btn-primary" id="fSave">${icon('check','ic-sm')}<span id="fSaveLbl"></span></button>`}</div>`;
 
   if (keepOpen) { const body = $('#sheet .sheet-body'), st = body ? body.scrollTop : 0; $('#sheet').innerHTML = html; $('#sheet .sheet-body').scrollTop = st; }
@@ -943,9 +948,10 @@ function updateSaveLabel(){
   const lbl = $('#fSaveLbl');
   if (lbl) lbl.textContent = (F.mode === 'income' ? 'Lưu khoản thu' : 'Lưu khoản chi') + (amt ? ' ' + fmt(amt) : '');
   const pl = $('#fPayLbl');
-  if (pl) { const acc = accById(F.accountId), app = acc && appById(acc.appId); pl.textContent = app ? 'Mở app ' + shortApp(app) : 'Chuyển & ghi sổ'; }
+  if (pl) pl.textContent = 'Lưu QR & ghi sổ';
 }
-async function saveTx(openApp){
+const newTxId = () => ('T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).toUpperCase();
+async function saveTx(withQr){
   readForm();
   let ok = true;
   const showErr = (id, box, bad) => { $('#'+id).hidden = !bad; if (box) box.classList.toggle('invalid', bad); };
@@ -955,32 +961,43 @@ async function saveTx(openApp){
 
   const acc = accById(F.accountId);
   const tx = {
-    id:F.id, time:F.time, type:F.mode==='income'?'Thu':'Chi',
+    id:F.id || newTxId(), time:F.time, type:F.mode==='income'?'Thu':'Chi',
     method: F.mode==='transfer' ? (F.qr ? 'QR' : 'Chuyển khoản') : (acc && acc.type==='Ngân hàng' ? 'Chuyển khoản' : 'Tiền mặt'),
     accountId:F.accountId, amount:F.amount, category:F.category,
     payee:F.mode==='transfer'?F.payee:'', payeeAccount:F.mode==='transfer'?F.payeeAccount:'',
     payeeBank:F.mode==='transfer'?((bankByBin(F.payeeBin)||{}).name||''):'',
     content:F.mode==='transfer'?F.content:'', note:F.note, qr:F.mode==='transfer'?F.qr:''
   };
-  if (openApp) {
-    const missing = !F.payeeBin ? 'ngân hàng nhận' : !F.payeeAccount ? 'số tài khoản nhận' : !(acc && acc.appId) ? '' : '';
-    if (missing) { toast('Vui lòng nhập ' + missing, 'err'); return; }
-    if (!(acc && acc.appId)) { toast('Tài khoản ' + (acc ? acc.name : '') + ' chưa chọn app ngân hàng — vào Tài khoản để chọn', 'err'); return; }
-    // Mở app ngay trong thao tác bấm để không bị trình duyệt chặn, đồng thời ghi sổ
-    const link = buildDeeplink(acc.appId, F);
-    try { navigator.clipboard && navigator.clipboard.writeText(F.payeeAccount); } catch(_) {}
-    const w = window.open(link, '_blank');
-    if (!w) { const aEl = document.createElement('a'); aEl.href = link; aEl.target = '_blank'; aEl.rel = 'noopener'; document.body.appendChild(aEl); aEl.click(); aEl.remove(); }
-    tx.note = tx.note || 'Chuyển qua app ' + shortApp(appById(acc.appId) || {appId:acc.appId});
+  if (withQr) {
+    if (!F.payeeBin || !F.payeeAccount) return toast('Cần ngân hàng và số tài khoản nhận để tạo ảnh QR', 'err');
+    if (!window.qrcode) { loadScript(QR_LIB).catch(()=>{}); return toast('Đang tải công cụ tạo QR, bấm lại sau giây lát', 'err'); }
+    if (!(await shareQr())) return;              // đóng bảng chia sẻ → chưa ghi sổ
   }
-  const btn = $(openApp ? '#fPay' : '#fSave'); const btnHtml = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Đang lưu…';
-  try {
-    const saved = await call('saveTransaction', tx);
-    S.txs = S.txs.filter(t => t.id !== saved.id); S.txs.push(saved); S.txs.sort((a,b)=>b.time-a.time);
-    closeSheet(); renderAll(); toast(openApp ? 'Đã ghi sổ. Nếu hủy chuyển khoản, hãy xóa giao dịch này.' : tx.id ? 'Đã cập nhật giao dịch' : 'Đã lưu ' + (tx.type==='Thu'?'khoản thu ':'khoản chi ') + fmt(saved.amount));
-  } catch(e) {
-    btn.disabled = false; btn.innerHTML = btnHtml; updateSaveLabel(); toast((openApp ? 'App đã mở nhưng chưa ghi sổ được: ' : '') + errMsg(e),'err');
-  }
+  commitTx(tx, F.id ? 'Đã cập nhật giao dịch'
+    : withQr ? 'Đã lưu ảnh QR và ghi sổ. Mở app ngân hàng → Quét QR → chọn ảnh'
+    : 'Đã lưu ' + (tx.type==='Thu'?'khoản thu ':'khoản chi ') + fmt(tx.amount));
+}
+// Cập nhật giao diện ngay, gửi máy chủ ở nền; lỗi thì hoàn nguyên
+function commitTx(tx, msg){
+  const prev = S.txs.find(t => t.id === tx.id);
+  const local = {...tx, accountName: (accById(tx.accountId)||{}).name || tx.accountName || ''};
+  S.txs = S.txs.filter(t => t.id !== tx.id); S.txs.push(local); S.txs.sort((a,b)=>b.time-a.time);
+  if ($('#sheet').classList.contains('show')) closeSheet();
+  renderAll(); toast(msg);
+  return call('saveTransaction', tx).then(saved => {
+    S.txs = S.txs.filter(t => t.id !== saved.id); S.txs.push(saved); S.txs.sort((a,b)=>b.time-a.time); saveCache();
+  }).catch(e => {
+    S.txs = S.txs.filter(t => t.id !== tx.id); if (prev) S.txs.push(prev); S.txs.sort((a,b)=>b.time-a.time);
+    renderAll(); toast('Chưa lưu được: ' + errMsg(e), 'err');
+  });
+}
+function removeTx(t){
+  S.txs = S.txs.filter(x => x.id !== t.id); renderAll();
+  const done = call('deleteTransaction', t.id).catch(e => {
+    if (!S.txs.some(x => x.id === t.id)) { S.txs.push(t); S.txs.sort((a,b)=>b.time-a.time); renderAll(); }
+    toast('Chưa xóa được: ' + errMsg(e), 'err');
+  });
+  toast('Đã xóa giao dịch', 'ok', {label:'Hoàn tác', fn: async () => { await done; commitTx({...t}, 'Đã khôi phục giao dịch'); }});
 }
 
 /* =================== CHI TIẾT GIAO DỊCH =================== */
@@ -1014,10 +1031,7 @@ function openTxDetail(id){
     closeSheet();
     setTimeout(()=>openTxForm(mode, {id:t.id, amount:t.amount, category:t.category, accountId:t.accountId, payee:t.payee, payeeAccount:t.payeeAccount, payeeBin:bin, content:t.content, note:t.note, time:t.time, qr:t.qr}), 200);
   };
-  $('#dDel').onclick = () => confirmBox('Xóa giao dịch?', `Khoản ${isIn?'thu':'chi'} <b class="num">${fmt(t.amount)}</b> sẽ bị xóa khỏi Google Sheet. Không thể hoàn tác.`, 'Xóa', async () => {
-    await call('deleteTransaction', t.id);
-    S.txs = S.txs.filter(x => x.id !== t.id); closeSheet(); renderAll(); toast('Đã xóa giao dịch');
-  });
+  $('#dDel').onclick = () => { closeSheet(); removeTx(t); };
 }
 
 /* =================== FORM TÀI KHOẢN =================== */
@@ -1072,9 +1086,11 @@ function openAccForm(id, afterSave){
         if (afterSave) setTimeout(afterSave, 220);
       } catch(e) { btn.disabled = false; btn.innerHTML = icon('check','ic-sm')+'Lưu tài khoản'; toast(errMsg(e),'err'); }
     };
-    if ($('#aDel')) $('#aDel').onclick = () => confirmBox('Xóa tài khoản?', `Tài khoản <b>${esc(a.name)}</b> sẽ bị xóa. Chỉ xóa được khi chưa có giao dịch nào.`, 'Xóa', async () => {
-      S.accounts = await call('deleteAccount', a.id); closeSheet(); renderAll(); toast('Đã xóa tài khoản');
-    });
+    if ($('#aDel')) $('#aDel').onclick = async () => {
+      const b = $('#aDel'); b.disabled = true;
+      try { S.accounts = await call('deleteAccount', a.id); closeSheet(); renderAll(); toast('Đã xóa tài khoản'); }
+      catch(e) { b.disabled = false; toast(errMsg(e), 'err'); }
+    };
   };
   draw();
 }
@@ -1117,6 +1133,7 @@ async function openScanner(){
   if ($('#sheet').classList.contains('show')) closeSheet();
   $('#scanner').hidden = false; document.body.classList.add('lock'); scanHandled = false;
   setScanStatus('Đang mở camera…');
+  if (!window.Html5Qrcode) { setScanStatus('Đang tải trình quét…'); try { await loadScript(SCAN_LIB, 'Html5Qrcode'); } catch(_) {} }
   if (!window.Html5Qrcode) { setScanStatus('Không tải được thư viện quét. Hãy chọn "Ảnh có mã QR" hoặc "Nhập tay".'); return; }
   try {
     const cfg = {verbose:false, experimentalFeatures:{useBarCodeDetectorIfSupported:true}};
@@ -1167,7 +1184,7 @@ async function scanFromFile(file){
   setScanStatus('Đang đọc mã QR trong ảnh…'); toast('Đang đọc mã QR…');
   try {
     await stopCam();
-    if (!window.Html5Qrcode) throw new Error('lib');
+    if (!window.Html5Qrcode) await loadScript(SCAN_LIB, 'Html5Qrcode');
     const reader = new Html5Qrcode('qrFileBox');
     let text = null;
     for (const size of [1280, 2000, 800]) {          // thử vài kích thước cho chắc
@@ -1188,7 +1205,6 @@ function act(name){
   if (name === 'cash') return openTxForm('cash');
   if (name === 'income') return openTxForm('income');
   if (name === 'pair') return openPairSheet();
-  if (name === 'saveqr') return saveQrImage();
   if (name === 'addAcc') {
     const resume = F ? {...F} : null;
     if ($('#sheet').classList.contains('show')) closeSheet();
@@ -1254,19 +1270,33 @@ function skeleton(){
 async function boot(reload){
   paintIcons(); paintEye();
   const rb = $('#btnReload'); rb.innerHTML = icon('reload'); rb.disabled = true;
-  if (!reload) skeleton();
+  S.appUrl = location.href.split('#')[0];
+  // Hiện ngay dữ liệu đã lưu trên máy, rồi đồng bộ với máy chủ ở nền
+  let cached = false;
+  if (!reload) {
+    const c = pref('cache', null);
+    if (c && c.accounts && getKey()) {
+      S.accounts = c.accounts; S.cats = c.cats; S.txs = c.txs; S.sheetUrl = c.sheetUrl; S.bankApps = (c.bankApps && c.bankApps.length) ? c.bankApps : FALLBACK_APPS;
+      renderAll(); go(S.view); cached = true;
+      if (S.autoScan) openScanner();
+    } else skeleton();
+  }
   try {
     const d = await call('getInitData');
-    S.accounts = d.accounts; S.cats = d.categories; S.txs = d.txs.sort((a,b)=>b.time-a.time); S.sheetUrl = d.sheetUrl; S.appUrl = location.href.split('#')[0];
+    S.accounts = d.accounts; S.cats = d.categories; S.txs = d.txs.sort((a,b)=>b.time-a.time); S.sheetUrl = d.sheetUrl;
     const apps = (IS_IOS ? (d.bankApps||{}).ios : (d.bankApps||{}).android) || []; S.bankApps = apps.length ? apps : FALLBACK_APPS;
-    renderAll(); go(S.view);
+    if (!$('#sheet').classList.contains('show') || !F) renderAll(); else { saveCache(); }
+    if (!cached) { go(S.view); if (!reload && S.autoScan) openScanner(); }
     if (reload) toast('Đã cập nhật dữ liệu mới nhất');
-    else if (S.autoScan) openScanner();
   } catch(e) {
     const m = errMsg(e);
-    if (m === 'NO_KEY' || m === 'BAD_KEY') { go('home'); return keyScreen(m === 'BAD_KEY'); }
-    $('#v-home').innerHTML = `<div class="card boot-err">${icon('alert','ic-lg')}<p>Không tải được dữ liệu:<br><b>${esc(m)}</b></p><button class="btn btn-primary" onclick="boot()">Thử lại</button></div>`;
-  } finally { rb.disabled = false; }
+    if (m === 'NO_KEY' || m === 'BAD_KEY') { setPref('cache', null); go('home'); return keyScreen(m === 'BAD_KEY'); }
+    if (cached) toast('Chưa kết nối được máy chủ — đang hiện dữ liệu đã lưu', 'err');
+    else $('#v-home').innerHTML = `<div class="card boot-err">${icon('alert','ic-lg')}<p>Không tải được dữ liệu:<br><b>${esc(m)}</b></p><button class="btn btn-primary" onclick="boot()">Thử lại</button></div>`;
+  } finally {
+    rb.disabled = false;
+    setTimeout(() => { loadScript(SCAN_LIB, 'Html5Qrcode').catch(()=>{}); loadScript(QR_LIB).catch(()=>{}); }, 800);
+  }
 }
 function keyScreen(bad){
   $('#v-home').innerHTML = `<div class="card" style="padding:24px">
