@@ -783,7 +783,7 @@ function confirmBox(title, msg, okLabel, onOk){
 
 /* =================== KẾT NỐI ĐIỆN THOẠI (mã QR chứa link cài đặt) =================== */
 const QR_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
-const SCAN_LIB = 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js';
+const SCAN_LIB = 'https://cdn.jsdelivr.net/npm/zxing-wasm@2/dist/iife/reader/index.js';
 const _loading = {};
 function loadScript(src, g = 'qrcode'){
   if (window[g]) return Promise.resolve();
@@ -1150,26 +1150,77 @@ function parseQR(raw){
   return r;
 }
 
-let qrCam = null, scanning = false, scanHandled = false;
+/* Bộ quét mới: camera Full HD + lấy nét liên tục, đọc mã trên vùng giữa ở độ phân giải gốc.
+   Dùng bộ đọc của hệ điều hành nếu có (BarcodeDetector), không thì ZXing WebAssembly. */
+let scanning = false, scanHandled = false, scanLoopOn = false;
+let camStream = null, camVideo = null, nativeBD = null, frameNo = 0;
+const scanCanvas = document.createElement('canvas');
+const scanCtx = scanCanvas.getContext('2d', {willReadFrequently: true});
+const ZX_OPTS = {formats: ['QRCode'], tryHarder: true, maxNumberOfSymbols: 1};
 const setScanStatus = s => $('#scanStatus').textContent = s;
+async function initDecoder(){
+  if (nativeBD === null) {
+    nativeBD = false;
+    if ('BarcodeDetector' in window) {
+      try { const f = await BarcodeDetector.getSupportedFormats(); if (f.includes('qr_code')) nativeBD = new BarcodeDetector({formats: ['qr_code']}); } catch(_) {}
+    }
+  }
+  if (!nativeBD) await loadScript(SCAN_LIB, 'ZXingWASM');
+}
+async function decodeCanvas(){
+  if (nativeBD) { const r = await nativeBD.detect(scanCanvas); return r[0] && r[0].rawValue; }
+  const r = await ZXingWASM.readBarcodes(scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height), ZX_OPTS);
+  return r[0] && r[0].text;
+}
+function grabFrame(){
+  const vw = camVideo && camVideo.videoWidth, vh = camVideo && camVideo.videoHeight;
+  if (!vw || !vh) return false;
+  if (frameNo++ % 3 !== 2) {                 // 2/3 số lần: vùng giữa, giữ nguyên độ phân giải (mã ở xa vẫn đủ điểm ảnh)
+    const side = Math.round(Math.min(vw, vh) * 0.8), out = Math.min(side, 1000);
+    scanCanvas.width = out; scanCanvas.height = out;
+    scanCtx.drawImage(camVideo, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, out, out);
+  } else {                                   // 1/3: toàn khung (mã to, lệch tâm)
+    const k = Math.min(1, 1280 / Math.max(vw, vh));
+    scanCanvas.width = Math.round(vw * k); scanCanvas.height = Math.round(vh * k);
+    scanCtx.drawImage(camVideo, 0, 0, scanCanvas.width, scanCanvas.height);
+  }
+  return true;
+}
+async function scanLoop(){
+  if (!scanLoopOn) return;
+  try {
+    if (grabFrame()) { const text = await decodeCanvas(); if (text && scanLoopOn) return onScanned(text); }
+  } catch(_) {}
+  if (scanLoopOn) setTimeout(scanLoop, 40);
+}
 async function openScanner(){
   if ($('#sheet').classList.contains('show')) closeSheet();
   $('#scanner').hidden = false; document.body.classList.add('lock'); scanHandled = false;
   setScanStatus('Đang mở camera…');
-  if (!window.Html5Qrcode) { setScanStatus('Đang tải trình quét…'); try { await loadScript(SCAN_LIB, 'Html5Qrcode'); } catch(_) {} }
-  if (!window.Html5Qrcode) { setScanStatus('Không tải được thư viện quét. Hãy chọn "Ảnh có mã QR" hoặc "Nhập tay".'); return; }
+  const camP = (navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+    ? navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}, width: {ideal: 1920}, height: {ideal: 1080}}})
+    : Promise.reject(new Error('nocam'));
+  const decP = initDecoder();
   try {
-    const cfg = {verbose:false, experimentalFeatures:{useBarCodeDetectorIfSupported:true}};
-    if (window.Html5QrcodeSupportedFormats) cfg.formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
-    qrCam = qrCam || new Html5Qrcode('reader', cfg);
-    await qrCam.start({facingMode:'environment'}, {fps:12, disableFlip:true}, onScanned, ()=>{});
-    scanning = true; setScanStatus('Đưa mã QR chuyển khoản vào trong khung');
+    camStream = await camP;
+    if ($('#scanner').hidden) return stopCam();          // đã đóng máy quét trong lúc chờ
+    camVideo = document.createElement('video');
+    camVideo.setAttribute('playsinline', ''); camVideo.playsInline = true; camVideo.muted = true; camVideo.srcObject = camStream;
+    $('#reader').replaceChildren(camVideo); await camVideo.play();
+    const track = camStream.getVideoTracks()[0];
+    try { const cap = track.getCapabilities ? track.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes('continuous')) await track.applyConstraints({advanced: [{focusMode: 'continuous'}]}); } catch(_) {}
   } catch(e) {
-    scanning = false;
-    setScanStatus('Không mở được camera. Bấm "Ảnh có mã QR" để chụp hoặc chọn ảnh mã QR.');
+    setScanStatus('Không mở được camera. Bấm "Ảnh có mã QR" để chụp hoặc chọn ảnh mã QR.'); return;
   }
+  try { await decP; } catch(_) { setScanStatus('Không tải được trình quét. Kiểm tra mạng rồi thử lại.'); return; }
+  setScanStatus('Hướng camera vào mã QR chuyển khoản');
+  scanning = true; scanLoopOn = true; frameNo = 0; scanLoop();
 }
-async function stopCam(){ if (qrCam && scanning) { try { await qrCam.stop(); } catch(e){} } scanning = false; }
+async function stopCam(){
+  scanLoopOn = false; scanning = false;
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  if (camVideo) { camVideo.srcObject = null; camVideo.remove(); camVideo = null; }
+}
 async function closeScanner(){ await stopCam(); $('#scanner').hidden = true; document.body.classList.remove('lock'); }
 async function onScanned(text){
   if (scanHandled) return; scanHandled = true;
@@ -1207,16 +1258,16 @@ async function scanFromFile(file){
   setScanStatus('Đang đọc mã QR trong ảnh…'); toast('Đang đọc mã QR…');
   try {
     await stopCam();
-    if (!window.Html5Qrcode) await loadScript(SCAN_LIB, 'Html5Qrcode');
-    const reader = new Html5Qrcode('qrFileBox');
+    await loadScript(SCAN_LIB, 'ZXingWASM');
     let text = null;
-    for (const size of [1280, 2000, 800]) {          // thử vài kích thước cho chắc
-      try { text = await reader.scanFile(await shrinkImage(file, size), false); break; } catch(_) {}
+    for (const size of [0, 1600, 900]) {            // ảnh gốc trước, rồi thử thu nhỏ
+      const r = await ZXingWASM.readBarcodes(size ? await shrinkImage(file, size) : file, ZX_OPTS);
+      if (r[0]) { text = r[0].text; break; }
     }
-    if (!text) text = await reader.scanFile(file, false);
+    if (!text) throw new Error('none');
     scanHandled = true; await closeScanner(); handleQrText(text);
   } catch(e) {
-    const m = 'Không đọc được mã QR. Chụp lại gần hơn, đủ sáng, mã nằm trọn trong ảnh — hoặc nhập tay.';
+    const m = 'Không đọc được mã QR. Chụp lại rõ hơn, mã nằm trọn trong ảnh — hoặc nhập tay.';
     setScanStatus(m); toast(m, 'err');
   } finally { $('#qrFile').value = ''; }
 }
@@ -1319,7 +1370,10 @@ async function boot(reload){
     else $('#v-home').innerHTML = `<div class="card boot-err">${icon('alert','ic-lg')}<p>Không tải được dữ liệu:<br><b>${esc(m)}</b></p><button class="btn btn-primary" onclick="boot()">Thử lại</button></div>`;
   } finally {
     rb.disabled = false;
-    setTimeout(() => { loadScript(SCAN_LIB, 'Html5Qrcode').catch(()=>{}); loadScript(QR_LIB).catch(()=>{}); }, 800);
+    setTimeout(() => {
+      loadScript(SCAN_LIB, 'ZXingWASM').then(() => { try { ZXingWASM.prepareZXingModule({fireImmediately: true}); } catch(_) {} }).catch(()=>{});
+      loadScript(QR_LIB).catch(()=>{});
+    }, 800);
   }
 }
 function keyScreen(bad){
