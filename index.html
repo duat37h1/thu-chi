@@ -275,8 +275,11 @@ textarea.input{min-height:76px;resize:vertical}
 /* ============ SCANNER ============ */
 .scanner{position:fixed;inset:0;z-index:60;background:#000;color:#fff;display:flex;flex-direction:column}
 .scanner[hidden]{display:none}
-#reader{position:absolute;inset:0;overflow:hidden}
-#reader video{width:100%!important;height:100%!important;object-fit:cover}
+/* thư viện quét tự gán style cho #reader → ép lại bằng !important để camera nằm phía sau khung */
+#reader{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;padding:0!important;border:0!important;overflow:hidden;z-index:0}
+#reader>div{width:100%!important;height:100%!important}
+#reader video{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;display:block}
+#reader canvas,#reader #qr-shaded-region{display:none!important}
 #reader img{display:none}
 .scan-top{position:relative;z-index:3;display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top) + var(--s3)) var(--s4) var(--s3)}
 .scan-top b{font-size:17px}
